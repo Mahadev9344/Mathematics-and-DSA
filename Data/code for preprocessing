@@ -1,0 +1,79 @@
+% MATLAB code for preprocessing
+clc; clear; close all;
+
+% Define input and output folders
+main_input_folder = "C:\Users\kaila\OneDrive\Desktop\New folder\people_dataset"; % Main input folder containing subfolders
+main_output_folder = "C:\Users\kaila\OneDrive\Desktop\New folder\processed_people"; % Main output folder for processed images
+num_augmentations = 5;  % Number of augmentations per image
+
+% Get a list of all subfolders
+subfolders = dir(main_input_folder);
+subfolders = subfolders([subfolders.isdir]); % Keep only directories
+subfolders = subfolders(~ismember({subfolders.name}, {'.', '..'})); % Remove '.' and '..'
+
+% Loop through each subfolder
+for s = 1:length(subfolders)
+    subfolder_name = subfolders(s).name;
+    input_subfolder = fullfile(main_input_folder, subfolder_name); % Path to input subfolder
+    output_subfolder = fullfile(main_output_folder, subfolder_name); % Path to output subfolder
+
+    % Create output subfolder if it doesn't exist
+    if ~exist(output_subfolder, 'dir')
+        mkdir(output_subfolder);
+    end
+
+    % Get all image files from the subfolder
+    image_files = dir(fullfile(input_subfolder, '*.jpg')); % Change extension if needed
+
+    % Loop through each image and apply preprocessing
+    for i = 1:length(image_files)
+        img_path = fullfile(input_subfolder, image_files(i).name);
+        img = imread(img_path); % Read image
+        [~, filename, ext] = fileparts(img_path); % Get filename
+
+        % Convert to grayscale if not already
+        if size(img, 3) == 3
+            img = rgb2gray(img);
+        end
+
+        % Resize image to 200x200
+        img_resized = imresize(img, [200, 200]);
+
+        % Save original grayscale and resized image
+        imwrite(img_resized, fullfile(output_subfolder, [filename, '_gray', ext]));
+
+        % Apply augmentations
+        for j = 1:num_augmentations
+            aug_img = img_resized; % Start with original image
+
+            % Apply random augmentations
+            switch randi(4)
+                case 1
+                    aug_img = fliplr(aug_img); % Horizontal Flip
+                case 2
+                    aug_img = imrotate(aug_img, randi([-20, 20]), 'bilinear', 'crop'); % Random Rotation
+                case 3
+                    aug_img = imadjust(aug_img, [], [], 1 + 0.2 * randn); % Brightness Adjustment
+                case 4
+                    aug_img = imnoise(aug_img, 'gaussian', 0, 0.01); % Gaussian Noise
+            end
+
+            % Standardization: Mean = 0, Std = 1
+            img_std = double(aug_img);
+            img_std = (img_std - mean(img_std(:))) / std(img_std(:));
+
+            % Normalization: Scale to range [0,1]
+            img_norm = mat2gray(aug_img);
+
+            % Save augmented images
+            std_path = fullfile(output_subfolder, sprintf('%s_aug%d_std%s', filename, j, ext));
+            norm_path = fullfile(output_subfolder, sprintf('%s_aug%d_norm%s', filename, j, ext));
+            
+            % Convert back to uint8 before saving
+            imwrite(uint8(255 * mat2gray(img_std)), std_path);
+            imwrite(img_norm, norm_path);
+        end
+    end
+end
+
+disp(['Processing completed! All images saved in ', main_output_folder]);
